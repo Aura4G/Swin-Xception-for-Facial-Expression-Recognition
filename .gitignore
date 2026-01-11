@@ -3,3 +3,7 @@
 datasets/
 
 haarcascade_frontalface_default.xml
+
+checkpoints/
+
+swin_xception_final_*.pth
