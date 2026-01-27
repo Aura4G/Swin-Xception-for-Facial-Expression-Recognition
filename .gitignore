@@ -6,4 +6,6 @@ haarcascade_frontalface_default.xml
 
 checkpoints/
 
+model_checkpoints/
+
 swin_xception_final_*.pth
