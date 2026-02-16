@@ -8,4 +8,8 @@ checkpoints/
 
 model_checkpoints/
 
+spare_checkpoints/
+
+figures/
+
 swin_xception_final_*.pth
