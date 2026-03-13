@@ -15,3 +15,5 @@ figures/
 swin_xception_final_*.pth
 
 *.pth
+
+*.png
