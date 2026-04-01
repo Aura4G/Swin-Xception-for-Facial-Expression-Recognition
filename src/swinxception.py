@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from timm import SwinTransformerBlock
+from timm.models.swin_transformer import SwinTransformerBlock
 
 class PatchEmbedding(nn.Module):
+    """Takes each image input and creates non-overlapping patches as embeddings before flattening the patches to a sequential input"""
+
     def __init__(self,
                  in_channels:int=3,
                  dim:int=96,
@@ -39,6 +41,14 @@ class PatchEmbedding(nn.Module):
     
 
 class PatchMerging(nn.Module):
+    """
+    Takes sequential tokens from the SwinX block,
+    rearranges the tokens to achieve the spatial information in the form of a grid,
+    splits the grid into an evenly split 2*2 distribution of tokens,
+    and concatenates the grids, increasing dimensionality by a factor of 4.
+    Linear projection halves spatial grid and doubles channels
+    """
+
     def __init__(self, dim):
         super(PatchMerging, self).__init__()
 
@@ -56,12 +66,14 @@ class PatchMerging(nn.Module):
 
         assert H % 2 == 0 and W % 2 == 0, f"H and W must be even, got H={H}, W={W}"
 
+        # Reshape sequential tokens to spatial grid
         x = x.view(B, H, W, C)
 
-        x0 = x[:, 0::2, 0::2, :]
-        x1 = x[:, 1::2, 0::2, :]
-        x2 = x[:, 0::2, 1::2, :]
-        x3 = x[:, 1::2, 1::2, :]
+        # Split spatial grid of tokens into 4 groups
+        x0 = x[:, 0::2, 0::2, :] # top left
+        x1 = x[:, 1::2, 0::2, :] # top right
+        x2 = x[:, 0::2, 1::2, :] # bottom left
+        x3 = x[:, 1::2, 1::2, :] # bottom right
 
         x = torch.cat([x0,x1,x2,x3], dim=-1)
 
@@ -102,7 +114,7 @@ class DepthwiseSeparableFFN(nn.Module):
     def __init__(self,
                  dim,
                  mlp_ratio:int=6,
-                 dropout:float=0.4):
+                 dropout:float=0.25):
         super(DepthwiseSeparableFFN, self).__init__()
 
         hidden_dim = int(dim * mlp_ratio)
@@ -136,7 +148,7 @@ class DepthwiseSeparableFFN(nn.Module):
         return x
 
 class SwinXceptionBlock(nn.Module):
-    """Swin Transformer block that uses depthwise separable FFN instead of an MLP"""
+    """Swin Transformer block that uses my depthwise separable FFN instead of an MLP"""
     def __init__(self,
                  embedding_dim,
                  num_heads,

@@ -1,6 +1,25 @@
-from torch.utils.data import Dataset
+import torch
+from torch.utils.data import Dataset, DataLoader, random_split
 from PIL import Image
+from torchvision.transforms import v2
 import os
+
+transform_train = v2.Compose([
+    v2.RandomAffine(degrees=10, scale=(0.8, 1.0), translate=(0.1, 0.1), interpolation=v2.InterpolationMode.BILINEAR, fill=0),
+    v2.Resize(size=(224, 224), antialias=True), 
+    v2.RandomHorizontalFlip(p=0.5),
+    v2.ToImage(),
+    v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
+
+transform_test = v2.Compose([
+    v2.Resize(size=(232, 232), interpolation=v2.InterpolationMode.BILINEAR, antialias=True),
+    v2.CenterCrop(size=(224, 224)),
+    v2.ToImage(),
+    v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 
 class FERDataset(Dataset): #Use torch.utils.data's Dataset and Dataloader classes for preprocessing
     def __init__(self, root_dir, transform=None):
@@ -33,3 +52,23 @@ class FERDataset(Dataset): #Use torch.utils.data's Dataset and Dataloader classe
             image = self.transform(image)
 
         return image, label
+    
+def load_datasets():
+    full_raf_train = FERDataset(os.path.abspath("../../datasets/RAFDB/DATASET/train"), transform_train)
+    raf_test = FERDataset(os.path.abspath("../../datasets/RAFDB/DATASET/test"), transform_test)
+    fer_test = FERDataset(os.path.abspath("../../datasets/FER2013/test"), transform_test)
+
+    train_size = int(0.8 * len(full_raf_train))
+    val_size = len(full_raf_train) - train_size
+
+    raf_train, raf_val = random_split(full_raf_train, [train_size, val_size])
+
+    train_loader = DataLoader(raf_train, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(raf_val, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
+    test_raf_loader = DataLoader(raf_test, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
+    test_fer_loader = DataLoader(fer_test, batch_size=32,shuffle=False, num_workers=4, pin_memory=True)
+
+    print(f"RAF-DB Training set images: {len(raf_train)}")
+    print(f"RAF-DB Validation set images: {len(raf_val)}")
+    print(f"RAF-DB Test set images: {len(raf_test)}")
+    print(f"FER2013 Test set images: {len(fer_test)}")

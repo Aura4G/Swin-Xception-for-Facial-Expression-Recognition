@@ -19,3 +19,9 @@ figures/
 *.jpg
 
 *.zip
+
+__pycache__/
+
+cam_results/
+
+*.pyc
