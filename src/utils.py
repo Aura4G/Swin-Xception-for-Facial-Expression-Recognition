@@ -8,12 +8,27 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
+from PIL import Image
+from torchvision.transforms import transforms
+
+### GLOBAL VARIABLES ###
 
 DATA_DIR = "datasets/RAFDB/DATASET/train/"
 OUTPUT_DIR = "./cam_results"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 categories = sorted(os.listdir(DATA_DIR))
+
+data = {"activations": None, "gradients": None}
+
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+transform = transforms.Compose([
+    transforms.Resize((224,224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
 
 ### FEATURE EXTRACTION FUNCTIONS FOR STAGE 2 OF TRAINING ###
 
@@ -71,15 +86,6 @@ def apply_smote(features, labels, random_state=42):
 
 ### GRAD CAM FUNCTIONS ###
 
-def reshape_transform(tensor, height=7, width=7):
-    result = tensor.reshape(tensor.size(0),
-                            height, width, tensor.size(2))
-
-    # Bring the channels to the first dimension,
-    # like in CNNs.
-    result = result.transpose(2, 3).transpose(1, 2)
-    return result
-
 def crop_to_square(img):
     """ Crops the image to a square """
 
@@ -93,8 +99,6 @@ def crop_to_square(img):
         return img[start_y : start_y + w, :]
     else:
         return img
-    
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 def get_face_crop(image):
     """ Takes a raw image and uses a Haar cascade classifier to locate a face and crop the image to the face. """
@@ -117,17 +121,94 @@ def get_face_crop(image):
 
     return image
 
+def save_activations(module, input, output):
+    data["activations"] = output
+
+def save_gradients(module, grad_input, grad_output):
+    data["gradients"] = grad_output[0]
+
+def compute_heatmap(model, img_tensor):
+
+    model.zero_grad()
+
+    output = model(img_tensor)
+    _, prediction = output.max(1)
+    
+
+    output[0, prediction].backward()
+    
+
+    acts = data["activations"]
+    grads = data["gradients"]
+    
+
+    weights = torch.mean(grads, dim=1, keepdim=True)
+
+    cam = torch.sum(weights * acts, dim=-1)
+
+    b, l = cam.shape
+    side = int(l**0.5) 
+    cam = cam.view(b, side, side)
+    
+    cam = torch.relu(cam)
+    cam = cam.detach().cpu().squeeze().numpy()
+    
+    return cam, prediction.item()
+
+def upsample_heatmap(heatmap, image):
+    if isinstance(image, torch.Tensor):
+        image = image.detach().cpu().squeeze()
+        if image.dim() == 3:
+            image = image.permute(1, 2, 0).numpy()
+        else:
+            image = image.numpy()
+
+    if torch.is_tensor(heatmap):
+        heatmap = torch.maximum(heatmap, torch.tensor(0.0))
+        heatmap = heatmap.numpy()
+    else:
+        heatmap = np.maximum(heatmap, 0)
+
+    m, M = heatmap.min(), heatmap.max()
+    if M - m > 0:
+        heatmap_norm = 255 * ((heatmap - m) / (M - m))
+    else:
+        heatmap_norm = np.zeros_like(heatmap)
+        
+    heatmap_norm = np.uint8(heatmap_norm)
+    
+    heatmap_resized = cv2.resize(heatmap_norm, (image.shape[1], image.shape[0]))
+    
+    heatmap_color = cv2.applyColorMap(heatmap_resized, cv2.COLORMAP_JET)
+    
+    if image.max() <= 1.0:
+        image = np.uint8(image * 255)
+    
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        
+    combined_img = cv2.addWeighted(heatmap_color, 0.7, image_bgr, 0.3, 0)
+    
+    return cv2.cvtColor(combined_img, cv2.COLOR_BGR2RGB)
+
+def display_images(combined_image, image):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+    axes[0].imshow(combined_image)
+    axes[0].set_title("Heatmap")
+    axes[0].axis('off')
+    axes[1].imshow(image)
+    axes[1].set_title("Original Image")
+    axes[1].axis('off')
+    plt.show()
+
 def produce_grad_cam_images_from_dataset(model, device):
     """ Takes the first image of each folder in the dataset, predicts its class, and outputs a grad-cam image to a folder. """
 
     model.eval()
 
-    target_layers = [model.layer4[-1]]
-
-    cam = AblationCAM(model=model,
-                  target_layers=target_layers,
-                  reshape_transform=reshape_transform,
-                  ablation_layer=AblationLayerVit())
+    target_layer = model.layer4[-1]
+    target_layer.register_forward_hook(save_activations)
+    target_layer.register_full_backward_hook(save_gradients)
 
     for category in categories:
         category_path = os.path.join(DATA_DIR, category)
@@ -140,27 +221,16 @@ def produce_grad_cam_images_from_dataset(model, device):
         img = cv2.imread(img_path)
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         rgb_img = cv2.resize(rgb_img, (224, 224))
-        rgb_img = np.float32(rgb_img) / 255
-        input_tensor = preprocess_image(rgb_img, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]).to(device)
-
-        output = model(input_tensor)
-        pred_idx = torch.argmax(output, dim=1).item()
+        input_image_norm = np.float32(rgb_img) / 255
+        input_tensor = transform(Image.fromarray(rgb_img)).unsqueeze(0).to(device)
+        
+        heatmap, pred_idx = compute_heatmap(model, input_tensor)
         predicted_label = categories[pred_idx]
         is_correct = (predicted_label == category)
-    
-        # AblationCAM and ScoreCAM have batched implementations.
-        # You can override the internal batch size for faster computation.
-        cam.batch_size = 32
 
-        grayscale_cam = cam(input_tensor=input_tensor,
-                            targets=None,
-                            eigen_smooth=True,
-                            aug_smooth=True)
-
-        # Here grayscale_cam has only one image in the batch
-        grayscale_cam = grayscale_cam[0, :]
-
-        cam_image = show_cam_on_image(rgb_img, grayscale_cam)
+        cam_image = upsample_heatmap(heatmap, rgb_img)
+        display_images(cam_image, rgb_img)
+        cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
         save_path = os.path.join(OUTPUT_DIR, f"{category}_image_predicted_as_{predicted_label}.jpg")
         cv2.imwrite(save_path, cam_image)
 

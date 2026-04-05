@@ -123,6 +123,10 @@ def training_loop(model, train_loader, val_loader, criterion, optimiser, schedul
 
         # Save the state dictionary to our checkpoint path
         torch.save(checkpoint, PATH)
+
+        # Early Stopping
+        if train_acc - val_acc >= 10.0:
+            break
     
     print("="*60)
 
