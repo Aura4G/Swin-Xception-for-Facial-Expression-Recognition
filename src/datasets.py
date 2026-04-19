@@ -54,9 +54,9 @@ class FERDataset(Dataset): #Use torch.utils.data's Dataset and Dataloader classe
         return image, label
     
 def load_datasets():
-    full_raf_train = FERDataset(os.path.abspath("../../datasets/RAFDB/DATASET/train"), transform_train)
-    raf_test = FERDataset(os.path.abspath("../../datasets/RAFDB/DATASET/test"), transform_test)
-    fer_test = FERDataset(os.path.abspath("../../datasets/FER2013/test"), transform_test)
+    full_raf_train = FERDataset(os.path.abspath("datasets/RAFDB/DATASET/train"), transform_train)
+    raf_test = FERDataset(os.path.abspath("datasets/RAFDB/DATASET/test"), transform_test)
+    fer_test = FERDataset(os.path.abspath("datasets/FER2013/test"), transform_test)
 
     train_size = int(0.8 * len(full_raf_train))
     val_size = len(full_raf_train) - train_size
@@ -72,3 +72,5 @@ def load_datasets():
     print(f"RAF-DB Validation set images: {len(raf_val)}")
     print(f"RAF-DB Test set images: {len(raf_test)}")
     print(f"FER2013 Test set images: {len(fer_test)}")
+
+    return train_loader, val_loader, test_raf_loader, test_fer_loader

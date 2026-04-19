@@ -4,13 +4,16 @@ from src import swinxception
 from src import datasets
 
 import torch
-from src.swinxception import SwinXception
+import torch.nn as nn
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {device}")
 
-    model = SwinXception(num_classes=7).to(device)
+    model = engine.load_swinxception_model()
 
-    total_params = sum(p.numel() for p in model.parameters())
-    print(f"Parameters in model: {total_params}")
+    _, _, loader, _ = datasets.load_datasets()
+
+    loss, acc = engine.validate(model, loader, nn.CrossEntropyLoss(), torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+    print(f"Accuracy: {acc:.2f}")
