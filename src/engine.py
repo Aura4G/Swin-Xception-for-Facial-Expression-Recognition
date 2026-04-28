@@ -2,7 +2,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
+
+import os
 
 from . import swinxception
 
@@ -54,7 +57,7 @@ def train_one_epoch(model, data_loader, criterion, optimiser, device):
     return epoch_loss, epoch_acc
 
 
-def validate(model, data_loader, criterion, device):
+def validate(model, data_loader, criterion, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
     """
     Makes predictions for every image in the validation/test set for one epoch, and calculates loss and accuracy.
     
@@ -93,7 +96,7 @@ def validate(model, data_loader, criterion, device):
     
     return val_loss, val_acc
 
-def training_loop(model, train_loader, val_loader, criterion, optimiser, scheduler, device, start_epoch, epochs=100):
+def training_loop(model, train_loader, val_loader, criterion, optimiser, scheduler, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), start_epoch=0, epochs=100):
     """
     Runs the train and validate functions for every epoch left in an unfinished model/from the start. If the.
     model is starting from scratch, the model freezes all of its parameters except the mlp head to warm up the.
@@ -105,10 +108,17 @@ def training_loop(model, train_loader, val_loader, criterion, optimiser, schedul
         train_loader (DataLoader): The batched dataset the model uses for training.
         val_loader (DataLoader): The batched dataset the model uses for validation.
         criterion: The Loss function utilised to calculate loss, for backpropagation (Cross Entropy Loss).
+        optimiser: The optimiser utilised to aid convergence.
+        scheduler: The learning rate scheduler to cooperate with the optimiser
+        device (torch.device): Either "cuda" or "cpu" depending on availability
+        start_epoch (int): Decides the starting point from which model training resumes. Default: 0
+        epochs (int): Maximum number of epochs. Default: 0
     
     Returns:
         model (nn.Module): The now End-to-End trained model.
     """
+
+    os.makedirs("model_checkpoints", exist_ok=True)
 
     if start_epoch == 0:
         # Freeze backbone, train only head (Epochs 1-3)
@@ -173,7 +183,7 @@ def training_loop(model, train_loader, val_loader, criterion, optimiser, schedul
     return model
 
 
-def retrain_mlp_head(model, features, labels, device, epochs=20, batch_size=128, lr=1e-3, weight_decay=1e-3):
+def retrain_mlp_head(model, features, labels, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), epochs=20, batch_size=128, lr=1e-3, weight_decay=1e-3):
     """
     Freezes the parameters of the model to retrain the head on the newly SMOTE-applied dataset.
 
@@ -255,7 +265,6 @@ def load_swinxception_model(file_name='swin_xception_final.pth', device=torch.de
 
     Returns:
         model (nn.Module): The Swin-Xception model with the saved state dictionary.
-
     """
 
     model = swinxception.SwinXception(num_classes=7).to(device)
@@ -265,3 +274,33 @@ def load_swinxception_model(file_name='swin_xception_final.pth', device=torch.de
     model.load_state_dict(swin_xception_final)
 
     return model
+
+def build_swinxception_model(epochs:int=100, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Creates a blank Swin-Xception model, and relevant criterion, optimiser and scheduler.
+    The default arguments passed for the optimiser and scheduler are identical to that of my chosen specifications during notebook training.
+
+    Args:
+        epochs (int): The number of iterations the model will train for (Used here to establish T_max in CosineAnnealingLR). Default: 100
+    """
+
+    model = swinxception.SwinXception().to(device = torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    criterion = nn.CrossEntropyLoss()
+    optimiser = AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    scheduler = CosineAnnealingLR(optimiser, T_max=epochs, eta_min=1e-6)
+
+    start_epoch = 0
+
+    # Continues from a checkpoint if training is interrupted
+    if os.path.exists(PATH):
+        checkpoint = torch.load(PATH, map_location=device)
+        start_epoch = checkpoint["epoch"] + 1
+        print(f"Checkpoint found! Starting from epoch {start_epoch}...")
+    
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimiser.load_state_dict(checkpoint["optimiser_state_dict"])
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    else:
+        print("No model checkpoints found. Starting from epoch 1...")
+
+    return model, criterion, optimiser, scheduler, start_epoch

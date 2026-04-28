@@ -6,14 +6,192 @@ from src import datasets
 import torch
 import torch.nn as nn
 
+import argparse
+
+### STAGE ONE ###
+def end_to_end_training(epochs=100, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Stage One: End-to-End Training.
+
+    This encapsulates the first stage of the training pipeline, in which the model is initialised
+    (or loaded from a checkpoint if training was interrupted), and is trained in its entirety for a set number of epochs.
+    Training and Validation are both run once per epoch, to give way to early-stopping conditions. At the end of training,
+    The model is evaluated on the host (RAF-DB) and holdout (FER2013) test sets.
+
+    Args:
+        epochs (int): The maximum number of epochs the model is being trained for. Default: 100.
+        device (torch.device): Either "cuda" or "cpu", depending on availability.
+
+    Returns:
+        model (nn.Module): The End-to-End trained and evaluated Swin-Xception model. This model can either
+                            be utilised for inference as is, or utilised for SMOTE retraining (Stages 2 and 3 of the training pipeline).
+    """
+
+    train_loader, val_loader, test_raf_loader, test_fer_loader = datasets.load_datasets()
+    model, criterion, optimiser, scheduler, start_epoch = engine.build_swinxception_model(epochs, device)
+    model = engine.training_loop(model, train_loader, val_loader, criterion, optimiser, scheduler, device, start_epoch, epochs)
+    
+    raf_loss, raf_acc = engine.validate(model, test_raf_loader, criterion)
+    fer_loss, fer_acc = engine.validate(model, test_fer_loader, criterion)
+
+    print(f"RAF-DB Testing  | Loss: {raf_loss:.4f} | Accuracy: {raf_acc:.2f}%")
+    print(f"FER2013 Testing | Loss: {fer_loss:.4f} | Accuracy: {fer_acc:.2f}%")
+
+    return model
+
+### STAGE TWO ###
+def apply_smote_to_dataset(device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Stage Two: Feature Extraction for SMOTE Retraining.
+
+    This encapsulates the second stage of the training pipeline; the now end-to-end trained model is frozen for the
+    purpose of feature extraction into two parallel data structures of deep features and labels. The features and labels
+    are then used to determine the class distribution and apply "not majority" SMOTE to achieve a uniform distribution of features
+    and labels.
+
+    Args:
+        device (torch.device): Either "cuda" or "cpu" depending on availability.
+
+    Returns:
+        (list): A list of the uniformly distributed features, including synthetically sampled features.
+        (list): A list, parallel to the balanced features list, composed of the labels corresponding to all of the features.
+    """
+
+    model = engine.load_swinxception_model("swin_xception_baseline.pth")
+
+    train_loader, _, _, _ = datasets.load_datasets()
+
+    features, labels = utils.extract_features(model, train_loader, device)
+
+    return utils.apply_smote(features, labels)
+
+### STAGE THREE ###
+def mlp_head_retraining(balanced_features, balanced_labels, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Stage Three: MLP Head Retraining on SMOTE'd dataset
+
+    This encapsulates the third and final stage of the training pipeline; The synthetically oversampled
+    features and labels culminate in their own dataset, which is used by the model to retrain its Linear
+    Projection layer (The MLP Head). The rest of the model is frozen during the retraining process.
+
+    Args:
+        balanced_features (list): A list of the uniformly distributed features, including synthetically sampled features.
+        balanced_labels (list): A list, parallel to the balanced features list, composed of the labels corresponding to all of the features.
+        device (torch.device): Either "cuda" or "cpu" depending on availability.
+
+    Returns:
+        model (nn.Module): The retrained model. This model is ready for inference, with no further additions
+        to be made.
+    """
+
+    model = engine.load_swinxception_model("swin_xception_baseline.pth")
+
+    model = engine.retrain_mlp_head(model, balanced_features, balanced_labels, device)
+
+    _, _, test_raf_loader, test_fer_loader = datasets.load_datasets()
+
+    criterion = nn.CrossEntropyLoss()
+
+    raf_loss, raf_acc = engine.validate(model, test_raf_loader, criterion)
+    fer_loss, fer_acc = engine.validate(model, test_fer_loader, criterion)
+
+    print(f"RAF-DB Testing  | Loss: {raf_loss:.4f} | Accuracy: {raf_acc:.2f}%")
+    print(f"FER2013 Testing | Loss: {fer_loss:.4f} | Accuracy: {fer_acc:.2f}%")
+
+    return model
+
+
+### FULL TRAINING PIPELINE ###
+def complete_training_pipeline(stage_one_epochs=100, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Incorporates all three stages of the training pipeline into a single function:
+    - End-to-End Training
+    - Feature Extraction and SMOTE
+    - MLP Head Retraining
+
+    Args:
+        stage_one_epochs (int): Maximum number of epochs to run
+        device (torch.device): Either "cuda" or "cpu" depending on availability.
+    """
+
+    # Stage One
+    swinxception_base = end_to_end_training(stage_one_epochs, device)
+
+    # Stage Two
+    balanced_features, balanced_labels = apply_smote_to_dataset(device)
+
+    # Stage Three
+    swinxception_final = mlp_head_retraining(balanced_features, balanced_labels, device)
+
+    return swinxception_base, swinxception_final
+
+
+### REPORT METRICS ###
+def report_all_metrics(model_path="swin_xception_final.pth", device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+
+    model = engine.load_swinxception_model(model_path)
+
+    _, val_loader, test_raf_loader, test_fer_loader = datasets.load_datasets()
+
+    emotions = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
+
+    print("\n" + "="*60)
+    print("Generating Confusion Matrices and Metrics")
+    print("="*60)
+
+    # RAF-DB Test Set
+    print("\nEvaluating RAF-DB test set...")
+    raf_preds, raf_labels = utils.get_predictions(model, test_raf_loader, device)
+    utils.plot_confusion_matrix(raf_labels, raf_preds, emotions, 
+                        'RAF-DB Test Set',
+                        save_path='image_figures/rafdb_confusion_matrix.png')
+    utils.print_detailed_metrics_with_uar_war(raf_labels, raf_preds, emotions, 'RAF-DB')
+
+    # FER2013 Test Set
+    print("\nEvaluating FER2013 test set...")
+    fer_preds, fer_labels = utils.get_predictions(model, test_fer_loader, device)
+    utils.plot_confusion_matrix(fer_labels, fer_preds, emotions, 
+                        'FER2013 Test Set', 
+                        save_path='image_figures/fer2013_confusion_matrix.png')
+    utils.print_detailed_metrics_with_uar_war(fer_labels, fer_preds, emotions, 'FER2013')
+
+    print("\n" + "="*60)
+    print("Minority Class Performance (Disgust & Fear)")
+    print("="*60)
+
+    minority_classes = ['disgust', 'fear']
+    minority_indices = [emotions.index(cls) for cls in minority_classes]
+
+    print(f"\n{'Class':<12} {'Dataset':<10} {'Recall':<10} {'Samples':<10}")
+    print("-"*60)
+
+    for cls_name, cls_idx in zip(minority_classes, minority_indices):
+        
+        # RAF-DB
+        raf_mask = raf_labels == cls_idx
+        if raf_mask.sum() > 0:
+            raf_recall = (raf_preds[raf_mask] == raf_labels[raf_mask]).sum() / raf_mask.sum() * 100
+            print(f"{cls_name.capitalize():<12} {'RAF-DB':<10} {raf_recall:>8.2f}% {raf_mask.sum():>9}")
+
+        # FER2013
+        fer_mask = fer_labels == cls_idx
+        if fer_mask.sum() > 0:
+            fer_recall = (fer_preds[fer_mask] == fer_labels[fer_mask]).sum() / fer_mask.sum() * 100
+            print(f"{cls_name.capitalize():<12} {'FER2013':<10} {fer_recall:>8.2f}% {fer_mask.sum():>9}")
+        
+        print()
+
+    embeddings, labels = utils.visualise_tsne(model=model, dataloader=val_loader, class_names=emotions, save_path="image_figures/tsne.png")
+
+
+### Grad-CAM ###
+def produce_grad_cam_image(model_path="swin_xception_final.pth", image_path=None):
+    pass
+
+def produce_grad_cam_images_from_set(model_path="swin_xception_final.pth"):
+    pass
+
+
+
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using {device}")
-
-    model = engine.load_swinxception_model()
-
-    _, _, loader, _ = datasets.load_datasets()
-
-    loss, acc = engine.validate(model, loader, nn.CrossEntropyLoss(), torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-
-    print(f"Accuracy: {acc:.2f}")
+    end_to_end_training()

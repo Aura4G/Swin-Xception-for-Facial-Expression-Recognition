@@ -37,7 +37,7 @@ transform = transforms.Compose([
                          std=[0.229, 0.224, 0.225])
 ])
 
-### FEATURE EXTRACTION FUNCTIONS FOR STAGE 2 OF TRAINING ###
+### FEATURE EXTRACTION AND SYNTHESIS FOR STAGE 2 OF TRAINING ###
 
 def extract_features(model, dataloader, device):
     """
@@ -352,7 +352,7 @@ def produce_grad_cam_images_from_dataset(model, device):
 
 ### Outputting Metrics ###
 
-def get_predictions(model, dataloader, device):
+def get_predictions(model, dataloader, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
     """
     Obtains all of the model's predictions and ground truth labels of every image in a given dataset.
 

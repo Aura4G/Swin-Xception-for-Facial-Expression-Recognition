@@ -56,6 +56,16 @@ class FERDataset(Dataset): #Use torch.utils.data's Dataset and Dataloader classe
         return image, label
     
 def load_datasets():
+    """
+    Sources dataset paths and creates batched data loaders for each relevant dataset.
+
+    Returns:
+        train_loader (DataLoader): The 80% split of the RAF-DB Training set the model uses to train on once per epoch
+        val_loader (DataLoader): The 20% split of the RAF-DB Training set the model uses to validate on once per epoch
+        test_raf_loader (DataLoader): The RAF-DB Test dataset
+        test_fer_loader (DataLoader): The FER2013 Test dataset
+    """
+
     full_raf_train = FERDataset(os.path.abspath("datasets/RAFDB/DATASET/train"), transform_train)
     raf_test = FERDataset(os.path.abspath("datasets/RAFDB/DATASET/test"), transform_test)
     fer_test = FERDataset(os.path.abspath("datasets/FER2013/test"), transform_test)
