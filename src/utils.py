@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data import DataLoader
 import numpy as np
 from collections import Counter
 from tqdm import tqdm
@@ -22,10 +23,13 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 categories = sorted(os.listdir(DATA_DIR))
 
+
 data = {"activations": None, "gradients": None}
 
+# Haar Cascade Classifier, utilised to detect faces in non-standardised images
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
+# Torchvision transforms to normalise and scale image inputs
 transform = transforms.Compose([
     transforms.Resize((224,224)),
     transforms.ToTensor(),
@@ -36,6 +40,20 @@ transform = transforms.Compose([
 ### FEATURE EXTRACTION FUNCTIONS FOR STAGE 2 OF TRAINING ###
 
 def extract_features(model, dataloader, device):
+    """
+    Freezes the passed model's and completes single pass of a dataset's images through the feature-extractor backbone, and compiles
+    the resulting features (along with their corresponding labels) into data structures.
+
+    Args:
+        model (nn.Module): The Swin-Xception model that performs the feature extraction.
+        dataloader (DataLoader): The batch-processed dataset used for the feature extraction.
+        device (torch.device): Defines which device the model's feature extraction is being ran on.
+
+    Returns:
+        features (List): Data structure containing all of the extracted features for each class.
+        labels (List): The data structure of labels that parallel the features data structure.
+    """
+
     model.eval()
     all_features = []
     all_labels = []
@@ -75,11 +93,25 @@ def extract_features(model, dataloader, device):
         return features, labels
 
 def apply_smote(features, labels, random_state=42):
+    """
+    Counts total feature support per-class and applies SMOTE to all classes except the majority to create uniform support.
+
+    Args:
+        features (List): A list of features extracted from the frozen Swin-Xception backbone.
+        labels (List): A list of labels corresponding to the features list
+        random_state (int): Sets the random seed for the SMOTE algorithm. Default: 42, to match all other random seed instantiations.
+
+    Returns:
+        balanced_features (List): A list of features, having been supplied synthetic samples of minority classes
+        balanced_labels (List): A list of labels, parallel to the feature list.
+    """
+
+    # Count every feature extracted by class
     print("Original class distribution:")
     print(Counter(labels))
     
-    smote = SMOTE(random_state=random_state, k_neighbors=5)
-    balanced_features, balanced_labels = smote.fit_resample(features, labels)
+    smote = SMOTE(random_state=random_state, k_neighbors=5) # Uses 5 nearest neighbours to interpolate new samples
+    balanced_features, balanced_labels = smote.fit_resample(features, labels) # smote.fit_resample returns the lists of balanced features and labels.
 
     print("Balanced class distribution:")
     print(Counter(balanced_labels))
@@ -90,7 +122,15 @@ def apply_smote(features, labels, random_state=42):
 ### GRAD CAM FUNCTIONS ###
 
 def crop_to_square(img):
-    """ Crops the image to a square """
+    """
+    Crops non-standardised images (images that are not natively from a dataset) to a square
+    
+    Args:
+        img: Variably-sized image input
+
+    Returns:
+        img: Image, where height = width
+    """
 
     h, w = img.shape[:2]
     
@@ -104,7 +144,7 @@ def crop_to_square(img):
         return img
 
 def get_face_crop(image):
-    """ Takes a raw image and uses a Haar cascade classifier to locate a face and crop the image to the face. """
+    """ Takes a non-standardised image and uses a Haar cascade classifier to locate a face and crop the image to the face. """
 
     grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(grey, 1.3, 5)
@@ -125,12 +165,48 @@ def get_face_crop(image):
     return image
 
 def save_activations(module, input, output):
+    """
+    Hook function to capture the output activations of a registered module.
+    Stores the output tensor in the external `data` dict under 'activations'.
+
+    Args:
+        module (nn.Module): The module the hook is registered to.
+        input (tuple): Inputs to the module (unused).
+        output (torch.Tensor): Output activations of the module.
+    """
     data["activations"] = output
 
 def save_gradients(module, grad_input, grad_output):
+    """
+    Hook function to capture the gradient of the loss with respect to a 
+    registered module's output. Stores the gradient in the external `data` 
+    dict under 'gradients'.
+
+    Args:
+        module (nn.Module): The module the hook is registered to.
+        grad_input (tuple): Gradients with respect to the module's inputs (unused).
+        grad_output (tuple[torch.Tensor]): Gradients with respect to the 
+                                           module's output; first element is stored.
+    """
     data["gradients"] = grad_output[0]
 
 def compute_heatmap(model, img_tensor):
+    """
+    Computes a Grad-CAM heatmap for the most confident predicted class.
+    Performs a forward and backward pass to collect activations and gradients
+    via registered hooks, then computes a weighted activation map.
+
+    Args:
+        model (nn.Module): The model to explain. Must have save_activations and 
+                           save_gradients hooks registered prior to calling.
+        img_tensor (torch.Tensor): Input image tensor of shape (1, C, H, W).
+
+    Returns:
+        tuple:
+            - cam (np.ndarray): Heatmap of shape (H', W') where H' and W' are 
+                                the spatial dimensions of the activation layer.
+            - prediction (int): Index of the predicted class.
+    """
 
     model.zero_grad()
 
@@ -159,6 +235,25 @@ def compute_heatmap(model, img_tensor):
     return cam, prediction.item()
 
 def upsample_heatmap(heatmap, image):
+    """
+    Upsamples and overlays a Grad-CAM heatmap onto the original image.
+    Handles both torch.Tensor and np.ndarray inputs for both arguments,
+    normalises the heatmap to [0, 255], resizes it to match the image 
+    resolution, and blends them using a 70/30 heatmap/image weighting.
+
+    Args:
+        heatmap (torch.Tensor | np.ndarray): Raw CAM output of shape (H', W'), 
+                                             where H' and W' are the spatial 
+                                             dimensions of the activation layer.
+        image (torch.Tensor | np.ndarray): Original input image. If a Tensor, 
+                                           expected shape is (1, C, H, W) or 
+                                           (C, H, W) in RGB format.
+
+    Returns:
+        np.ndarray: RGB image of shape (H, W, 3) with the heatmap overlaid 
+                    on the original image.
+    """
+
     if isinstance(image, torch.Tensor):
         image = image.detach().cpu().squeeze()
         if image.dim() == 3:
@@ -194,6 +289,15 @@ def upsample_heatmap(heatmap, image):
     return cv2.cvtColor(combined_img, cv2.COLOR_BGR2RGB)
 
 def display_images(combined_image, image):
+    """
+    Displays the Grad-CAM heatmap overlay and the original image side by side.
+
+    Args:
+        combined_image (np.ndarray): Heatmap overlay image of shape (H, W, 3), 
+                                     as returned by upsample_heatmap.
+        image (np.ndarray): Original input image of shape (H, W, 3).
+    """
+
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
     axes[0].imshow(combined_image)
@@ -205,7 +309,13 @@ def display_images(combined_image, image):
     plt.show()
 
 def produce_grad_cam_images_from_dataset(model, device):
-    """ Takes the first image of each folder in the dataset, predicts its class, and outputs a grad-cam image to a folder. """
+    """ 
+    Takes the first image of each folder in the dataset, predicts its class, and outputs a grad-cam image to a folder.
+    
+    Args:
+        model (nn.Module): The Swin-Xception model being utilised to produce grad-CAM images
+        device (torch.device): The device the model is utilising
+    """
 
     model.eval()
 
@@ -243,7 +353,19 @@ def produce_grad_cam_images_from_dataset(model, device):
 ### Outputting Metrics ###
 
 def get_predictions(model, dataloader, device):
-    """Get all predictions and true labels"""
+    """
+    Obtains all of the model's predictions and ground truth labels of every image in a given dataset.
+
+    Args:
+        model (nn.Module): The Swin-Xception model making predictions.
+        dataloader (DataLoader): The batched dataset the model is running predictions on.
+        device (torch.device): The device the model is utilising.
+
+    Returns:
+        all_preds (np.array) : Numpy array of all the model's predicted labels.
+        all_labels (np.array) : Numpy array of all of the ground truth labels.
+    """
+
     model.eval()
     all_preds = []
     all_labels = []
@@ -260,7 +382,19 @@ def get_predictions(model, dataloader, device):
     return np.array(all_preds), np.array(all_labels)
 
 def plot_confusion_matrix(y_true, y_pred, class_names, title, save_path=None):
-    """Plot and optionally save confusion matrix"""
+    """
+    Plot and optionally save confusion matrices.
+
+    Plots a confusion matrix counting actual predictions, and a confusion matrix normalised for percentages.
+
+    Args:
+        y_true (List): List of ground truth labels.
+        y_pred (List): List of model-predicted labels.
+        class_names (List[string]): List of class names.
+        title (string): The title of the graphs.
+        save_path (string): The file path to save visualised confusion matrices to. Default: None (results in not being saved).
+    """
+
     cm = confusion_matrix(y_true, y_pred)
     
     # Normalize to percentages
@@ -291,7 +425,20 @@ def plot_confusion_matrix(y_true, y_pred, class_names, title, save_path=None):
     plt.show()
 
 def print_detailed_metrics(y_true, y_pred, class_names, dataset_name):
-    """Print detailed classification metrics"""
+    """
+    Outputs:
+    - The confusion matrices
+    - Accuracy
+    - Precision
+    - Recall
+    - F1-Score
+
+    Args:
+        y_true (List): List of ground truth labels.
+        y_pred (List): List of model-predicted labels.
+        class_names (List[string]): List of class names.
+        dataset_name: The dataset being evaluated.
+    """
     print(f"\n{'='*60}")
     print(f"{dataset_name} - Detailed Metrics")
     print(f"{'='*60}")
@@ -314,7 +461,18 @@ def calculate_uar_war(y_true, y_pred, class_names):
     Calculate UAR and WAR metrics
     
     UAR (Unweighted Average Recall): Mean of per-class recalls (treats all classes equally)
+
     WAR (Weighted Average Recall): Weighted mean of per-class recalls (weighted by class frequency)
+
+    Args:
+        y_true (List): List of ground truth labels.
+        y_pred (List): List of model-predicted labels.
+        class_names (List[string]): List of class names.
+
+    Returns:
+        uar (float): Unweighted Average Recall
+        war (float): Weighted Average Recall
+        per_class_recall (float)
     """
     cm = confusion_matrix(y_true, y_pred)
     
@@ -331,7 +489,15 @@ def calculate_uar_war(y_true, y_pred, class_names):
     return uar, war, per_class_recall
 
 def print_detailed_metrics_with_uar_war(y_true, y_pred, class_names, dataset_name):
-    """Print detailed classification metrics including UAR and WAR"""
+    """
+    Prints detailed classification metrics, including UAR and WAR
+
+    Args:
+        y_true (List): List of ground truth labels.
+        y_pred (List): List of model-predicted labels.
+        class_names (List[string]): List of class names.
+        dataset_name (string): The dataset being evaluated.
+    """
     print(f"\n{'='*60}")
     print(f"{dataset_name} - Detailed Metrics")
     print(f"{'='*60}")
@@ -383,19 +549,19 @@ def visualise_tsne(
                 → PCA (50-d)  → t-SNE (2-d)  → scatter plot
 
     Args:
-        model:             SwinXception instance (eval mode recommended).
-        dataloader:        Yields (images, labels) batches.
-        class_names:       Optional list mapping label indices to strings.
-        n_pca_components:  PCA dimensionality before t-SNE (set 0 to skip).
-        tsne_perplexity:   t-SNE perplexity; typically 5–50.
-        tsne_max_iter:       t-SNE optimisation iterations.
-        device:            'cuda', 'cpu', or auto-detected if None.
-        save_path:         If given, saves the figure to this path.
-        title:             Plot title.
+        model (nn.Module): SwinXception instance (eval mode recommended).
+        dataloader (DataLoader): Yields (images, labels) batches.
+        class_names (List[string]): Optional list mapping label indices to strings.
+        n_pca_components (int): PCA dimensionality before t-SNE (set 0 to skip).
+        tsne_perplexity (float): t-SNE perplexity; typically 5–50.
+        tsne_max_iter (int): t-SNE optimisation iterations.
+        device (torch.device): 'cuda', 'cpu', or auto-detected if None.
+        save_path (string): If given, saves the figure to this path.
+        title (string): Plot title.
 
     Returns:
-        embeddings: (N, 2) t-SNE coordinates.
-        labels:     (N,)   ground-truth class indices.
+        embeddings (List): (N, 2) t-SNE coordinates.
+        labels (List[int]): (N,) ground-truth class indices.
     """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"

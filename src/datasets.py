@@ -4,6 +4,7 @@ from PIL import Image
 from torchvision.transforms import v2
 import os
 
+# Transformations that are applied the RAF-DB training and validation sets
 transform_train = v2.Compose([
     v2.RandomAffine(degrees=10, scale=(0.8, 1.0), translate=(0.1, 0.1), interpolation=v2.InterpolationMode.BILINEAR, fill=0),
     v2.Resize(size=(224, 224), antialias=True), 
@@ -13,6 +14,7 @@ transform_train = v2.Compose([
     v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
+# Transformations, all of which are necessary for correct inference, to be applied on RAF-DB and FER2013 test sets
 transform_test = v2.Compose([
     v2.Resize(size=(232, 232), interpolation=v2.InterpolationMode.BILINEAR, antialias=True),
     v2.CenterCrop(size=(224, 224)),

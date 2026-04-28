@@ -17,9 +17,9 @@ class PatchEmbedding(nn.Module):
         Initialises a Patch Embedding module.
 
         Args:
-            `in_channels (int)`: The colour depth of the input image expected. Default: 3
-            `dim (int)`: The quantity of embedding dimensions to produced. Default: 96
-            `patch_size (int)`: The height and width of each patch. Default: 4.
+            in_channels (int): The colour depth of the input image expected. Default: 3
+            dim (int): The quantity of embedding dimensions to produced. Default: 96
+            patch_size (int): The height and width of each patch. Default: 4.
         """
 
         super(PatchEmbedding, self).__init__()
@@ -41,10 +41,10 @@ class PatchEmbedding(nn.Module):
         Takes each image input and creates non-overlapping patches as embeddings before flattening the patches to a sequential input.
 
         Args:
-            `x (torch.Tensor)`: Input image of shape (B, C, H, W), where H and W 
+            x (torch.Tensor): Input image of shape (B, C, H, W), where H and W 
                 must be divisible by patch_size.
         Returns:
-            `torch.Tensor`: Patch sequence of shape (B, N, dim), where
+            torch.Tensor: Patch sequence of shape (B, N, dim), where
                 N = (H/patch_size) * (W/patch_size). 
 
         Raises:
@@ -78,7 +78,7 @@ class PatchMerging(nn.Module):
         Initialises a Patch Merging module.
 
         Args:
-        - `dim (int)`: The current quantity of embedding dimensions.
+        - dim (int): The current quantity of embedding dimensions.
         """
 
         super(PatchMerging, self).__init__()
@@ -100,11 +100,11 @@ class PatchMerging(nn.Module):
         Linear projection halves spatial grid and doubles channels.
 
         Args:
-            `x (torch.Tensor)`: Patch sequence of shape (B, N, C), where N = H*W 
+            x (torch.Tensor): Patch sequence of shape (B, N, C), where N = H*W 
                 and H, W are assumed even.    
     
         Returns:
-            `torch.Tensor`: Downsampled Sequence of shape (B, (H/2)*(W/2), 2C).
+            torch.Tensor: Downsampled Sequence of shape (B, (H/2)*(W/2), 2C).
 
         Raises:
             AssertionError: If either the H or W derived from N are not even.
@@ -158,15 +158,15 @@ class DepthwiseSeparableConv(nn.Module):
         Initialises a Depthwise-Separable Convolution layer.
 
         Args:
-        - `in_channels (int)`: The incoming channel quantity.
-        - `out_channels (int)`: The resulting channel quantity.
-        - `kernel_size (int)`: Kernel of odd size to enable correct symmetric padding. Default: 3.
+        - in_channels (int): The incoming channel quantity.
+        - out_channels (int): The resulting channel quantity.
+        - kernel_size (int): Kernel of odd size to enable correct symmetric padding. Default: 3.
         """
 
         super(DepthwiseSeparableConv, self).__init__()
 
         # Achieves a depthwise separable convolution, by setting out_channels=in_channels to keep the same number of channels
-        # after the convolution (produces `in_channels` feature maps). groups=in_channels ensures the kernel is applied to each
+        # after the convolution (produces in_channels feature maps). groups=in_channels ensures the kernel is applied to each
         # channel separately.
         self.depthwise = nn.Conv2d(in_channels, in_channels, kernel_size, padding=kernel_size//2, groups=in_channels)
         
@@ -184,10 +184,10 @@ class DepthwiseSeparableConv(nn.Module):
         ratio in the FFN
 
         Args:
-            `x (torch.Tensor)`: Spatial grid of patches with dimensions (B, (C/6C), H, W)
+            x (torch.Tensor): Spatial grid of patches with dimensions (B, (C/6C), H, W)
 
         Returns:
-            `torch.Tensor`: Spatial grid of patches with dimensions (B, (6C/C), H, W)
+            torch.Tensor: Spatial grid of patches with dimensions (B, (6C/C), H, W)
         """
 
         x = self.depthwise(x)
@@ -214,9 +214,9 @@ class DepthwiseSeparableFFN(nn.Module):
         Initialises a DS-FFN
 
         Args:
-        - `dim (int)`: The embedding dimension quantity
-        - `mlp_ratio (int)`: The expansion factor for which the pointwise convolution widens/narrows the channel count. Default: 6.
-        - `dropout (float)`: The dropout probability inbetween each depthwise separable convolution layer. Default: 0.25.
+        - dim (int): The embedding dimension quantity
+        - mlp_ratio (int): The expansion factor for which the pointwise convolution widens/narrows the channel count. Default: 6.
+        - dropout (float): The dropout probability inbetween each depthwise separable convolution layer. Default: 0.25.
         """
 
         super(DepthwiseSeparableFFN, self).__init__()
@@ -243,11 +243,11 @@ class DepthwiseSeparableFFN(nn.Module):
         the channel quantity through a pair of depthwise-separable convolution layers.
 
         Args:
-            `x (torch.Tensor)`: Patch sequence of shape (B, N, C), where N = H*W 
+            x (torch.Tensor): Patch sequence of shape (B, N, C), where N = H*W 
                 and H, W are assumed even. 
 
         Returns:
-            `torch.Tensor`: Patch sequence of shape (B, N, C).
+            torch.Tensor: Patch sequence of shape (B, N, C).
         """
 
         # Cast the data structure of the sequence input into variables
@@ -295,12 +295,12 @@ class SwinXceptionBlock(nn.Module):
         Initialises a Swin-Xception Block.
 
         Args:
-            `embedding_dim (int)`: Number of input embedding dimensions (C).
-            `num_heads (int)`: Number of attention heads in the Window Multi-Head Self-Attention module.
-            `input_resolution (tuple[int, int])`: Spatial resolution (H, W) of the input feature map, used to compute attention masks for cyclic shifting.
-            `window_size (int)`: Height and widht of each local attention window. Default: 7.
-            `shift_size (int)`: Number of tokens to cyclically shift the feature map before windowed attention. 0 for W-MSA, window_size//2 for SW-MSA. Default: 0
-            `mlp_ratio (int)`: The expansion factor for the hidden dimension in the Depthwise Separable FFN. Default: 6.
+            embedding_dim (int): Number of input embedding dimensions (C).
+            num_heads (int): Number of attention heads in the Window Multi-Head Self-Attention module.
+            input_resolution (tuple[int, int]): Spatial resolution (H, W) of the input feature map, used to compute attention masks for cyclic shifting.
+            window_size (int): Height and widht of each local attention window. Default: 7.
+            shift_size (int): Number of tokens to cyclically shift the feature map before windowed attention. 0 for W-MSA, window_size//2 for SW-MSA. Default: 0
+            mlp_ratio (int): The expansion factor for the hidden dimension in the Depthwise Separable FFN. Default: 6.
         """
 
         super(SwinXceptionBlock, self).__init__()
@@ -327,11 +327,11 @@ class SwinXceptionBlock(nn.Module):
         cyclically shifted to compute attention across window boundaries.
 
         Args:
-            `x (torch.Tensor)`: Patch sequence of shape (B, N, C), where N = H*W 
+            x (torch.Tensor): Patch sequence of shape (B, N, C), where N = H*W 
                 and H, W are assumed even. 
 
         Returns:
-            `torch.Tensor`: Patch sequence of shape (B, N, C), unchanged in shape 
+            torch.Tensor: Patch sequence of shape (B, N, C), unchanged in shape 
                 from the input after residual addition.
         """
 
@@ -365,8 +365,8 @@ class SwinXception(nn.Module):
         Initialises the Swin-Xception backbone
 
         Args:
-            `num_classes (int)`: The total classes the model is predicting. Default: 7 for my datasets.
-            `dropout (float)`: The dropout probability before linear projection in the model's head.
+            num_classes (int): The total classes the model is predicting. Default: 7 for my datasets.
+            dropout (float): The dropout probability before linear projection in the model's head.
         """
 
         super(SwinXception, self).__init__()
@@ -404,10 +404,10 @@ class SwinXception(nn.Module):
     def forward(self, x):
         """
         Args:
-            `x (torch.Tensor)`: Input image of shape (B, C, H, W).
+            x (torch.Tensor): Input image of shape (B, C, H, W).
 
         Returns:
-            `torch.Tensor`: Class logits of shape (B, num_classes), where each value 
+            torch.Tensor: Class logits of shape (B, num_classes), where each value 
                 is the unnormalised score for the corresponding class.
         """
 

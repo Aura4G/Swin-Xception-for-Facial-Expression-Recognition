@@ -9,7 +9,21 @@ from . import swinxception
 PATH = "model_checkpoints/latest.pth"
 
 def train_one_epoch(model, data_loader, criterion, optimiser, device):
-    """Makes predictions for every image in the training set for one epoch, calculates loss and accuracy, and backpropagates."""
+    """
+    Makes predictions for every image in the training set for one epoch, calculates loss and accuracy, and backpropagates.
+
+    Args:
+        model (nn.Module): The Swin-Xception module being trained.
+        data_loader (DataLoader): The dataset the model is utilising for training.
+        criterion: The Loss function for backpropagation and reporting training loss.
+        optimiser: The gradient descent optimiser making a step.
+        device (torch.device): The device being used for inference. Either "cuda" or "cpu".
+
+    Returns:
+        epoch_loss (float): The loss for this training set epoch.
+        epoch_acc (float): The model's accuracy on the training set.
+    """
+
     model.train()
     
     running_loss = 0.0
@@ -41,7 +55,20 @@ def train_one_epoch(model, data_loader, criterion, optimiser, device):
 
 
 def validate(model, data_loader, criterion, device):
-    """Makes predictions for every image in the validation/test set for one epoch, and calculates loss and accuracy."""
+    """
+    Makes predictions for every image in the validation/test set for one epoch, and calculates loss and accuracy.
+    
+    Args:
+        model (nn.Module): The Swin-Xception module being evaluated.
+        data_loader (DataLoader): The dataset the model is utilising for testing.
+        criterion: The Loss function for backpropagation and reporting validation loss. This function is Cross Entropy Loss.
+        device (torch.device): The device being used for inference. Either "cuda" or "cpu".
+
+    Returns:
+        val_loss (float): The loss for this validation run.
+        val_acc (float): The model's accuracy on the validation/test set.
+    """
+
     model.eval()
     running_loss = 0.0
     correct = 0
@@ -68,9 +95,19 @@ def validate(model, data_loader, criterion, device):
 
 def training_loop(model, train_loader, val_loader, criterion, optimiser, scheduler, device, start_epoch, epochs=100):
     """
-    Runs the train and validate functions for every epoch left in an unfinished model/from the start. If the
-    model is starting from scratch, the model freezes all of its parameters except the mlp head to warm up the
-    head for the first 3 epochs.
+    Runs the train and validate functions for every epoch left in an unfinished model/from the start. If the.
+    model is starting from scratch, the model freezes all of its parameters except the mlp head to warm up the.
+    head for the first 3 epochs. Early stopping is enabled if the training accuracy rises 10% higher then validation.
+    accuracy. This comprises Stage One of the Training Pipeline: End-to-End training.
+
+    Args:
+        model (nn.Module): The Swin-Xception model to be trained in its entirety.
+        train_loader (DataLoader): The batched dataset the model uses for training.
+        val_loader (DataLoader): The batched dataset the model uses for validation.
+        criterion: The Loss function utilised to calculate loss, for backpropagation (Cross Entropy Loss).
+    
+    Returns:
+        model (nn.Module): The now End-to-End trained model.
     """
 
     if start_epoch == 0:
@@ -137,7 +174,19 @@ def training_loop(model, train_loader, val_loader, criterion, optimiser, schedul
 
 
 def retrain_mlp_head(model, features, labels, device, epochs=20, batch_size=128, lr=1e-3, weight_decay=1e-3):
-    """Freezes the parameters of the model to retrain the head on the newly SMOTE'd dataset"""
+    """
+    Freezes the parameters of the model to retrain the head on the newly SMOTE-applied dataset.
+
+    This enables Stage Three of the Training Pipeline: MLP Head Retraining.
+
+    Args:
+
+    Returns:
+        model (nn.Module): The now SMOTE-influenced model.
+        features (list): The list of features produced from the SMOTE phase.
+        labels (list): The list of labels corresponding to the features list.
+        device (torch.device): The device being used for inference. Either "cuda" or "cpu".
+    """
 
     # Freeze all params in SwinXception backbone
     for param in model.patch_embed.parameters():
@@ -196,6 +245,19 @@ def retrain_mlp_head(model, features, labels, device, epochs=20, batch_size=128,
     return model
 
 def load_swinxception_model(file_name='swin_xception_final.pth', device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Locates a .pth file containing the state dictionary of a Swin-Xception. Ran before other validation/metrics functions to ensure the usage of
+    a complete model when evaluating.
+
+    Args:
+        file_name: The name of the .pth file containing the correct state dictionary. Default: 'swin_xception_final.pth'
+        device: Either 'cuda' or 'cpu'.
+
+    Returns:
+        model (nn.Module): The Swin-Xception model with the saved state dictionary.
+
+    """
+
     model = swinxception.SwinXception(num_classes=7).to(device)
 
     swin_xception_final = torch.load(file_name, map_location=device)
