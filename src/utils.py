@@ -8,6 +8,9 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+from typing import Optional
 from PIL import Image
 from torchvision.transforms import transforms
 
@@ -353,3 +356,145 @@ def print_detailed_metrics_with_uar_war(y_true, y_pred, class_names, dataset_nam
     print(f"WAR (Weighted Average Recall): {war:.2f}%")
     print(f"UAR (Unweighted Average Recall): {uar:.2f}%")
     print("-"*60)
+
+
+### t-SNE ###
+
+def visualise_tsne(
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    class_names: Optional[list[str]] = None,
+    n_pca_components: int = 50,
+    tsne_perplexity: float = 30.0,
+    tsne_max_iter: int = 1000,
+    device: Optional[str] = None,
+    save_path: Optional[str] = None,
+    title: str = "t-SNE of SwinXception GAP Features",
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extract post-GAP features from SwinXception and visualise with t-SNE.
+
+    The extraction hook attaches after self.avgpool1d so features are
+    768-d vectors — semantically rich, spatially summarised, and compact
+    enough for reliable t-SNE embedding.
+
+    Pipeline:  raw tokens (B, 49, 768)
+                → LayerNorm → AdaptiveAvgPool1d → (B, 768)
+                → PCA (50-d)  → t-SNE (2-d)  → scatter plot
+
+    Args:
+        model:             SwinXception instance (eval mode recommended).
+        dataloader:        Yields (images, labels) batches.
+        class_names:       Optional list mapping label indices to strings.
+        n_pca_components:  PCA dimensionality before t-SNE (set 0 to skip).
+        tsne_perplexity:   t-SNE perplexity; typically 5–50.
+        tsne_max_iter:       t-SNE optimisation iterations.
+        device:            'cuda', 'cpu', or auto-detected if None.
+        save_path:         If given, saves the figure to this path.
+        title:             Plot title.
+
+    Returns:
+        embeddings: (N, 2) t-SNE coordinates.
+        labels:     (N,)   ground-truth class indices.
+    """
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    model = model.to(device)
+    model.eval()
+
+    # Register a forward hook on avgpool1d to capture GAP output      
+    gap_features: list[torch.Tensor] = []
+
+    def _hook(module, input, output):
+        # output shape: (B, 768, 1)  →  squeeze to (B, 768)
+        gap_features.append(output.squeeze(-1).detach().cpu())
+
+    hook_handle = model.avgpool1d.register_forward_hook(_hook)
+
+    # Forward pass — no gradients needed                              
+    all_labels: list[torch.Tensor] = []
+
+    with torch.no_grad():
+        for images, labels in dataloader:
+            images = images.to(device)
+            _ = model(images)          # triggers the hook
+            all_labels.append(labels.cpu())
+
+    hook_handle.remove()
+
+    features = torch.cat(gap_features, dim=0).numpy()   # (N, 768)
+    labels   = torch.cat(all_labels,   dim=0).numpy()   # (N,)
+
+    print(f"Extracted features: {features.shape}  |  samples: {len(labels)}")
+
+    # ------------------------------------------------------------------ #
+    # 3.  Optional PCA pre-reduction                                      #
+    # ------------------------------------------------------------------ #
+    if n_pca_components > 0 and features.shape[1] > n_pca_components:
+        print(f"PCA: {features.shape[1]}-d → {n_pca_components}-d …")
+        pca = PCA(n_components=n_pca_components, random_state=42)
+        features = pca.fit_transform(features)
+        explained = pca.explained_variance_ratio_.sum()
+        print(f"  Explained variance retained: {explained:.1%}")
+
+    # ------------------------------------------------------------------ #
+    # 4.  t-SNE embedding                                                 #
+    # ------------------------------------------------------------------ #
+    print(f"t-SNE: {features.shape[1]}-d → 2-d  "
+          f"(perplexity={tsne_perplexity}, n_iter={tsne_max_iter}) …")
+
+    tsne = TSNE(
+        n_components=2,
+        perplexity=tsne_perplexity,
+        max_iter=tsne_max_iter,
+        random_state=42,
+        init="pca",          # more stable than random init
+        learning_rate="auto",
+    )
+    embeddings = tsne.fit_transform(features)   # (N, 2)
+    print("Done.")
+
+    # ------------------------------------------------------------------ #
+    # 5.  Plot                                                            #
+    # ------------------------------------------------------------------ #
+    n_classes = len(np.unique(labels))
+    cmap      = plt.get_cmap("tab10" if n_classes <= 10 else "tab20")
+    colours   = [cmap(i / max(n_classes - 1, 1)) for i in range(n_classes)]
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    ax.set_facecolor("#0f0f0f")
+    fig.patch.set_facecolor("#0f0f0f")
+
+    for cls_idx in range(n_classes):
+        mask = labels == cls_idx
+        ax.scatter(
+            embeddings[mask, 0],
+            embeddings[mask, 1],
+            c=[colours[cls_idx]],
+            s=12,
+            alpha=0.75,
+            linewidths=0,
+            label=class_names[cls_idx] if class_names else str(cls_idx),
+        )
+
+    legend = ax.legend(
+        loc="best",
+        framealpha=0.2,
+        edgecolor="white",
+        labelcolor="white",
+        fontsize=9,
+    )
+    ax.set_title(title, color="white", fontsize=13, pad=12)
+    ax.tick_params(colors="grey")
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#333333")
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved to {save_path}")
+
+    plt.show()
+    return embeddings, labels
