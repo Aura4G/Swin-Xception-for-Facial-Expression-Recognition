@@ -114,7 +114,7 @@ Results on standard benchmarks (dataset name, split, accuracy):
 | **Swin-Xception (mine)** | **81.13%** | **46.41%** |
 | **Swin-Xception (SMOTE-influenced)** | **79.24** | **45.01%** |
 
-> Hardware: A100 80GB. Inference batch size 32. See `scripts/eval.py` for reproduction.
+> Hardware: NVIDIA GeForce 5060 RTX. Inference batch size 32. See `src/engine.py`, `src/datasets.py` for reproduction.
 
 ---
 
@@ -173,7 +173,7 @@ Download pretrained checkpoints from [Releases](https://github.com/Aura4G/Swin-X
 
 ## Citation
 
-Citation is currently is development.
+Citation is currently pending.
 
 ---
 
