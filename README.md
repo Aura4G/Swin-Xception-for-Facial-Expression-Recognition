@@ -9,9 +9,12 @@
 
 ## Overview
 
-A short paragraph (3–5 sentences) explaining the core idea of the architecture. What problem does it solve? What is the key design decision that sets it apart? Avoid listing features here — save that for later sections. This is the "why should I care?" paragraph.
+Swin-Xception offers a novel hybrid approach to boosting performance on Facial Expression Recognition (FER) datasets, leveraging the inductive bias
+and efficiency-friendly depthwise separable convolutions of Xception architecture in each Feed-Forward Network of a Swin Transformer. This presents
+an accuracy boost while avoiding sky-rocketing the parameter count. Swin-Xception also demonstrates excellent competency as a vision transformer backbone
+cooperates with SMOTE to refine decision boundaries for minority classes, effectively answering the class imbalance issue many FER datasets are plagued with.
 
-**Architecture diagram or figure goes here** (if applicable):
+**Architecture diagram**:
 
 ```
 [Encoder] --> [Bottleneck] --> [Decoder]
@@ -21,9 +24,9 @@ A short paragraph (3–5 sentences) explaining the core idea of the architecture
 
 ## Key Features
 
-- **Feature A** — brief explanation of why it matters
-- **Feature B** — brief explanation
-- **Feature C** — brief explanation
+- **Shifted Window MSA** — brief explanation of why it matters
+- **Depthwise Separable FFN** — brief explanation
+- **SMOTE-retrained MLP Head** — brief explanation
 
 ---
 
@@ -46,7 +49,7 @@ cd Swin-Xception-for-Facial-Expression-Recognition
 
 ---
 
-## Quick Start
+## Usage
 
 ### Training
 
@@ -100,7 +103,8 @@ python main.py gradcam-set\
 
 | Variant | Parameters | Description |
 |---------|-----------|-------------|
-| `Swin-Xception` | 36M | Lightweight, fast inference, local inductive bias |
+| `swin_xception_baseline` | 36M | Lightweight, fast inference, local inductive bias with global attention |
+| `swin_xception_final` | 36M | Same as Swin-Xception Base, but with Refined Linear Projection Head after training on SMOTE-affected dataset|
 
 ---
 

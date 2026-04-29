@@ -15,3 +15,7 @@ haarcascade_frontalface_default.xml
 __pycache__/
 
 *.pyc
+
+!docs/
+!docs/*.png
+!docs/*.jpg
