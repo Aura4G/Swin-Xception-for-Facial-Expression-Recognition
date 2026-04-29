@@ -16,9 +16,9 @@ import time
 class MyThread(QThread):
     frame_signal = Signal(QImage, QImage, QImage)
 
-    def __init__(self, cascade_path, model, class_names, parent=None):
+    def __init__(self, model, class_names, parent=None):
         super().__init__(parent)
-        self.cascade = cv2.CascadeClassifier(cascade_path)
+        self.cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         self.model = model
         self.class_names = class_names
         self.INPUT_SIZE = (224, 224)
@@ -29,7 +29,7 @@ class MyThread(QThread):
 
         self.class_images = {}
         for name in self.class_names:
-            path = f"src/emotion_displays/{name}.png" 
+            path = f"emotion_displays/{name}.png" 
             img = cv2.imread(path)
             if img is None:
                 img = np.zeros((320, 400, 3), dtype=np.uint8)
@@ -198,10 +198,9 @@ class MainApp(QtWidgets.QMainWindow):
         main_layout.addLayout(right_panel)
 
         # Thread Setup
-        cascade = "src/haar_cascade/haarcascade_frontalface_default.xml"
         classes = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
         model = engine.load_swinxception_model()
-        self.camera_thread = MyThread(cascade, model, classes)
+        self.camera_thread = MyThread(model, classes)
         self.camera_thread.frame_signal.connect(self.update_ui)
 
     def change_mode(self, mode_text):
