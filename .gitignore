@@ -1,16 +1,6 @@
 .ipynb_checkpoints/
 
-datasets/
-
 haarcascade_frontalface_default.xml
-
-checkpoints/
-
-model_checkpoints/
-
-spare_checkpoints/
-
-figures/
 
 *.pth
 
@@ -20,8 +10,8 @@ figures/
 
 *.zip
 
-__pycache__/
+*.csv
 
-cam_results/
+__pycache__/
 
 *.pyc
