@@ -45,7 +45,15 @@ cooperates with SMOTE to refine decision boundaries for minority classes, effect
 - CUDA 13.0+ (for GPU training)
 
 Install dependencies:
-
+- imbalanced-learn
+- timm
+- cv2
+- matplotlib
+- scikit-learn
+- numpy
+- torchvision
+- tqdm
+- PIL
 ---
 
 ## Installation
