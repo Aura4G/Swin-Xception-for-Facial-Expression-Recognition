@@ -112,6 +112,11 @@ def complete_training_pipeline(stage_one_epochs=100, device=torch.device("cuda" 
     Args:
         stage_one_epochs (int): Maximum number of epochs to run
         device (torch.device): Either "cuda" or "cpu" depending on availability.
+
+    Returns:
+        swinxception_base (nn.Module): The End-to-End trained Swin-Xception model, with no SMOTE applied to it
+        swinxception_final (nn.Module): The Swin-Xception model after SMOTE has been applied to the dataset, and
+                                    the model's MLP head has been retrained on the balanced dataset.
     """
 
     # Stage One
@@ -128,6 +133,20 @@ def complete_training_pipeline(stage_one_epochs=100, device=torch.device("cuda" 
 
 ### REPORT METRICS ###
 def report_all_metrics(model_path="swin_xception_final.pth", device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Prints every classification-based metric scored by the model:
+    - Accuracy
+    - Precision
+    - Recall
+    - F1-Score
+    - WAR & UAR
+
+    This function also prints per-class recall, and produces the Confusion matrices and t-SNE graphs to an image folder.
+
+    Args:
+        model_path (string): The local path to the state dictionary of the SwinXception model being utilised. Default: swin_xception_final.pth
+        device (torch.device): Either "cuda" or "cpu" depending on availability.
+    """
 
     model = engine.load_swinxception_model(model_path)
 
@@ -185,13 +204,35 @@ def report_all_metrics(model_path="swin_xception_final.pth", device=torch.device
 
 
 ### Grad-CAM ###
-def produce_grad_cam_image(model_path="swin_xception_final.pth", image_path=None):
-    pass
+def produce_grad_cam_image(model_path="swin_xception_final.pth", img_path=None, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Loads a Swin-Xception model from a state dictionary, and utilises the loaded model to predict and produce a Grad-CAM image
+    of a local image file.
 
-def produce_grad_cam_images_from_set(model_path="swin_xception_final.pth"):
-    pass
+    Args:
+        model_path (string): The local path to the state dictionary of the SwinXception model being utilised. Default: swin_xception_final.pth
+        img_path (string): The local path of the image to be classified and Explained via Grad-CAM
+        device (torch.device): Either "cuda" or "cpu" depending on availability.
+    """
+    if img_path is not None:
+        model = engine.load_swinxception_model(model_path)
+        
+        utils.produce_grad_cam_image(model, img_path, device)
+
+def produce_grad_cam_images_from_set(model_path="swin_xception_final.pth", device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    """
+    Loads a Swin-Xception model from a state dictionary, and utilises the loaded model to predict and produce Grad-CAM images of
+    the first image of each class in the RAF-DB dataset.
+
+    model_path (string): The local path to the state dictionary of the SwinXception model being utilised. Default: swin_xception_final.pth
+    device (torch.device): Either "cuda" or "cpu" depending on availability.
+    """
+    
+    model = engine.load_swinxception_model(model_path)
+
+    utils.produce_grad_cam_images_from_dataset(model, device)
 
 
 
 if __name__ == "__main__":
-    end_to_end_training()
+    produce_grad_cam_image(model_path="temp/swin_xception_final.pth", img_path="me_lol.jpg")

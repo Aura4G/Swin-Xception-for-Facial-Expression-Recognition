@@ -349,6 +349,40 @@ def produce_grad_cam_images_from_dataset(model, device):
 
         print(f"Processed {category}, Predicted: {predicted_label}")
 
+def produce_grad_cam_image(model, img_path, device):
+    """ 
+    Locates a local image, preprocesses it, predicts its class, and outputs a grad-cam image to a folder.
+    
+    Args:
+        model (nn.Module): The Swin-Xception model being utilised to produce grad-CAM images
+        img_path (string): The local path of the image to be classified and Explained via Grad-CAM
+        device (torch.device): The device the model is utilising
+    """
+
+    model.eval()
+
+    target_layer = model.layer4[-1]
+    target_layer.register_forward_hook(save_activations)
+    target_layer.register_full_backward_hook(save_gradients)
+
+    img = cv2.imread(img_path)
+    img_face = get_face_crop(img)
+
+    rgb_img = cv2.cvtColor(img_face, cv2.COLOR_BGR2RGB)
+    rgb_img = crop_to_square(rgb_img)
+    rgb_img = cv2.resize(rgb_img, (224, 224))
+    input_image_norm = np.float32(rgb_img) / 255
+    input_tensor = transform(Image.fromarray(rgb_img)).unsqueeze(0).to(device)
+
+    heatmap, pred_idx = compute_heatmap(model, input_tensor)
+    predicted_label = categories[pred_idx]
+
+    cam_image = upsample_heatmap(heatmap, rgb_img)
+    display_images(cam_image, rgb_img)
+    cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
+    cv2.imwrite(f"predicted_{predicted_label}.jpg", cam_image)
+    print(f"Predicted: {predicted_label}")
+
 
 ### Outputting Metrics ###
 
