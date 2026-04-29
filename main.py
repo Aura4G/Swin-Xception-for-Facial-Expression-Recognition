@@ -216,11 +216,17 @@ def produce_grad_cam_image(model_path="swin_xception_final.pth", img_path=None, 
         model_path (string): The local path to the state dictionary of the SwinXception model being utilised. Default: swin_xception_final.pth
         img_path (string): The local path of the image to be classified and Explained via Grad-CAM
         device (torch.device): Either "cuda" or "cpu" depending on availability.
+
+    Raises:
+        ValueError: If img_path is empty
     """
-    if img_path is not None:
-        model = engine.load_swinxception_model(model_path)
+
+    if img_path is None:
+        raise ValueError("img_path must be provided.")
+    
+    model = engine.load_swinxception_model(model_path)
         
-        utils.produce_grad_cam_image(model, img_path, device)
+    utils.produce_grad_cam_image(model, img_path, device)
 
 def produce_grad_cam_images_from_set(model_path="swin_xception_final.pth", device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
     """
