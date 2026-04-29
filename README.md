@@ -16,9 +16,7 @@ cooperates with SMOTE to refine decision boundaries for minority classes, effect
 
 **Architecture diagram**:
 
-```
-[Encoder] --> [Bottleneck] --> [Decoder]
-```
+![Architecture](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/complete_backbone.png)
 
 ---
 
@@ -96,6 +94,12 @@ python main.py gradcam\
 python main.py gradcam-set\
   --model-path model_path \
 ```
+
+---
+
+## Live Demo
+
+![Demo](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/demonstration.png)
 
 ---
 
