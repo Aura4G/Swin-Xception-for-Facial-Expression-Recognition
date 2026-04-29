@@ -14,12 +14,17 @@ and efficiency-friendly depthwise separable convolutions of Xception architectur
 an accuracy boost while avoiding sky-rocketing the parameter count. Swin-Xception also demonstrates excellent competency as a vision transformer backbone
 cooperates with SMOTE to refine decision boundaries for minority classes, effectively answering the class imbalance issue many FER datasets are plagued with.
 
-**Architecture diagram**:
+---
 
+## Architecture diagrams
+
+### Swin-Xception Backbone
 ![Architecture1](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/complete_backbone.png)
 
+### Swin-Xception Block
 ![Architecture2](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/swinx_block.png)
 
+### Depthwise Separable Feed-Forward Network
 ![Architecture3](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/ds_ffn.png)
 
 ---
