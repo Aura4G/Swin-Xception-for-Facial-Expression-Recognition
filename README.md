@@ -1,10 +1,9 @@
-# ModelName
+# Swin-Xception
 
-> One-line description of what this architecture does and what makes it interesting.
+> A Hybrid model, combining Shifted Window Multi-head Attention with Depthwise Separable Feed-Forward Networks for advanced local feature extraction.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![arXiv](https://img.shields.io/badge/arXiv-0000.00000-b31b1b.svg)](https://arxiv.org/abs/0000.00000)
 
 ---
 
@@ -30,46 +29,69 @@ A short paragraph (3–5 sentences) explaining the core idea of the architecture
 
 ## Requirements
 
-- Python 3.10+
-- PyTorch >= 2.0 (or JAX / TensorFlow — specify your framework)
-- CUDA 11.8+ (for GPU training)
+- Python 3.11+
+- PyTorch >= 2.9
+- CUDA 13.0+ (for GPU training)
 
 Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
 
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/yourname/modelname.git
-cd modelname
-pip install -e .
+git clone https://github.com/Aura4G/Swin-Xception-for-Facial-Expression-Recognition.git
+cd Swin-Xception-for-Facial-Expression-Recognition
 ```
 
 ---
 
 ## Quick Start
 
-### Inference
-
-```python
-from modelname import ModelName
-
-model = ModelName.from_pretrained("yourname/modelname-base")
-output = model(input_tensor)
-```
-
 ### Training
 
+#### End-to-End Training (Stage 1)
+
 ```bash
-python train.py \
-  --config configs/base.yaml \
-  --data_dir /path/to/data \
-  --output_dir ./checkpoints
+python main.py train\
+  --epochs epochs \
+```
+
+#### SMOTE Retraining (Stages 2 & 3)
+
+```bash
+python main.py smote-retrain\
+```
+
+#### Full Training Pipeline (Stages 1, 2 & 3)
+
+```bash
+python main.py pipeline\
+  --epochs epochs \
+```
+
+### Metrics and Insights on a given Swin-Xception Instance
+
+#### Complete Metrics Report
+
+```bash
+python main.py metrics\
+  --model-path model_path \
+```
+
+#### Grad-CAM and Inference on Individual Image
+
+```bash
+python main.py gradcam\
+  --model-path model_path \
+  --img-path img_path \
+```
+
+#### Grad-CAM and Inference on Standardised Images
+
+```bash
+python main.py gradcam-set\
+  --model-path model_path \
 ```
 
 ---
@@ -78,20 +100,19 @@ python train.py \
 
 | Variant | Parameters | Description |
 |---------|-----------|-------------|
-| `modelname-small` | 85M | Lightweight, fast inference |
-| `modelname-base` | 307M | Balanced performance |
-| `modelname-large` | 1.2B | Best performance |
+| `Swin-Xception` | 36M | Lightweight, fast inference, local inductive bias |
 
 ---
 
 ## Benchmarks
 
-Results on standard benchmarks (dataset name, split, metric):
+Results on standard benchmarks (dataset name, split, accuracy):
 
-| Model | Dataset A | Dataset B | Dataset C |
-|-------|-----------|-----------|-----------|
-| Baseline X | 72.4 | 81.3 | 68.1 |
-| **ModelName (ours)** | **76.8** | **84.1** | **71.5** |
+| Model | RAF-DB (host) | FER2013 (holdout) |
+|-------|-----------|-----------|
+| ResNet50 | 80.38% | 48.91% |
+| **Swin-Xception (mine)** | **81.13%** | **46.41%** |
+| **Swin-Xception (SMOTE-influenced)** | **79.24** | **45.01%** |
 
 > Hardware: A100 80GB. Inference batch size 32. See `scripts/eval.py` for reproduction.
 
@@ -101,32 +122,46 @@ Results on standard benchmarks (dataset name, split, metric):
 
 ```
 Swin-Xception-for-Facial-Expression-Recognition/
-├── cam_results/             # Heatmap output images from image inputs
-├── datasets/                # Store the expected datasets (RAF-DB and FER2013)
-├── src/                     # Source files
-│   ├── swinxception.py      # Main model modules
-│   ├── datasets.py          # Dataset handling and preprocessing
-│   ├── engine.py            # Training/validation functions
-│   └── utils.py             # Helpers and metrics functions
-├── image_figures/           # Computed confusion matrices and t-SNE clusters
-├── notebooks/               # Development-phase notebooks
-├── model_checkpoints/       # Checkpoint Training Progress (State dictionary)
-├── live_demo.py             # Real-time Facial Expression Classification demo
-└── main.py                  # Control deck for testing all functionality and testing models.
+├── cam_results/                             # Heatmap output images from image inputs
+├── datasets/                                # Store the expected datasets (RAF-DB and FER2013)
+├── src/                                     # Source files
+│   ├── swinxception.py                      # Main model modules
+│   ├── datasets.py                          # Dataset handling and preprocessing
+│   ├── engine.py                            # Training/validation functions
+│   ├── utils.py                             # Helpers and metrics functions
+│   ├── emotion_displays/                    # Folder of customisable images for the live demo
+│   └── haar_cascade/                        # Contains independently sourced Haar Cascade Classifier
+├── image_figures/                           # Computed confusion matrices and t-SNE clusters
+├── notebooks/                               # Development-phase notebooks
+│   ├── final_notebook/                      # Final notebook of development directory
+│   │   ├── final_experimentation_run.ipynb  # My experimentation notebook
+│   │   ├── cam_results/                     # Heatmap output images from image inputs
+│   │   └── model_checkpoints/               # Checkpoint Training Progress (State dictionary)
+│   ├── resnet50_comparison                  # Dataset handling and preprocessing
+│   │   ├── resnet50_comparison.ipynb        # Notebook to train and evaluate ResNet50 baseline
+│   │   └── model_checkpoints/               # Checkpoint Training Progress (State dictionary)
+│   └── swinsmall_comparison                 # Training/validation functions
+│       ├── swinsmall_comparison.ipynb       # Notebook to train and evaluate Swin-Small baseline
+│       └── model_checkpoints/               # Checkpoint Training Progress (State dictionary)
+├── model_checkpoints/                       # Checkpoint Training Progress (State dictionary)
+├── live_demo.py                             # Real-time Facial Expression Classification demo
+└── main.py                                  # Control deck for testing all functionality and testing models.
 ```
 
 ---
 
 ## Configuration
 
-Key config options (see `configs/base.yaml` for the full reference):
-
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `hidden_dim` | 512 | Hidden layer dimensionality |
-| `num_layers` | 12 | Number of transformer/encoder layers |
-| `dropout` | 0.1 | Dropout rate during training |
-| `learning_rate` | 3e-4 | Initial learning rate |
+| `mlp_ratio` | 6 | Expansion factor for the DS-FFN |
+| `third_layer_blocks` | 6 | Number of Swin-Xception blocks on the third layer |
+| `dropout` | 0.5 | Dropout rate before Linear Projection |
+| `learning_rate` | 1e-4 | Initial learning rate |
+| `optimiser` | AdamW | Optimisation algorithm |
+| `scheduler` | CosineAnnealingLR | Learning Rate Scheduling algorithm |
+| `eta_min` | 1e-6| Minimum learning rate |
+
 
 ---
 
@@ -138,16 +173,7 @@ Download pretrained checkpoints from [Releases](https://github.com/Aura4G/Swin-X
 
 ## Citation
 
-If you use this work, please cite:
-
-```bibtex
-@article{yourname2025modelname,
-  title   = {ModelName: A Novel Architecture for ...},
-  author  = {Your Name and Collaborator Name},
-  journal = {arXiv preprint arXiv:0000.00000},
-  year    = {2025}
-}
-```
+Citation is currently is development.
 
 ---
 
