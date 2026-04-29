@@ -16,15 +16,20 @@ cooperates with SMOTE to refine decision boundaries for minority classes, effect
 
 **Architecture diagram**:
 
-![Architecture](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/complete_backbone.png)
+![Architecture1](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/complete_backbone.png)
+
+![Architecture2](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/swinx_block.png)
+
+![Architecture3](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/ds_ffn.png)
 
 ---
 
 ## Key Features
 
-- **Shifted Window MSA** — brief explanation of why it matters
-- **Depthwise Separable FFN** — brief explanation
-- **SMOTE-retrained MLP Head** — brief explanation
+- **Shifted Window MSA** — enables cross-window attention between patches by shifting the partition grid each layer, capturing long-range dependencies without the quadratic cost of full self-attention
+- **Depthwise Separable FFN** — retains spatially-aware computation in the feed-forward layer, remaining streamlined while introducing an inductive bias to draw greater significance to fine-grained local features
+- **SMOTE-retrained MLP Head** — facilitates further learning from minority classes, by freezing and extracting features & labels from the model backbone, applying SMOTE to create a uniform distribution of features
+                                 per class, and retraining the model's Linear Projection head on the balanced feature and label set.
 
 ---
 
@@ -179,8 +184,8 @@ A Haar Cascade classifier detects human faces every frame, draws a bounding box 
 model to draw SoftMax probabilities of each expression present for that frame (top-right widget). An image display changes depending on the
 prominent expression for that frame (bottom-right widget), demonstrating a slight application of the model towards behavioural assessment.
 
-The image displays, located in `src/emotion_displays`, can be changed to any preferrable image, but they default to text labels of the expression class
-(as seen in the image above). To add/replace images to be displayed in real-time, place your desired image in the `src/emotion_displays` folder, and rename
+The image displays, located in `emotion_displays/`, can be changed to any preferrable image, but they default to text labels of the expression class
+(as seen in the image above). To add/replace images to be displayed in real-time, place your desired image in the `emotion_displays/` folder, and rename
 your image to any of the 7 facial expression classes (angry, disgust, fear, happy, neutral, sad, surprise).
 
 This demo requires a complete Swin-Xception state dictionary, either created during training or located in [Releases](https://github.com/Aura4G/Swin-Xception-for-FER/releases).
@@ -220,13 +225,12 @@ Results on standard benchmarks (dataset name, split, accuracy):
 Swin-Xception-for-FER/
 ├── cam_results/                             # Heatmap output images from image inputs
 ├── datasets/                                # Store the expected datasets (RAF-DB and FER2013)
+├── emotion_displays/                        # Folder of customisable images for the live demo
 ├── src/                                     # Source files
 │   ├── swinxception.py                      # Main model modules
 │   ├── datasets.py                          # Dataset handling and preprocessing
 │   ├── engine.py                            # Training/validation functions
-│   ├── utils.py                             # Helpers and metrics functions
-│   ├── emotion_displays/                    # Folder of customisable images for the live demo
-│   └── haar_cascade/                        # Contains independently sourced Haar Cascade Classifier
+│   └── utils.py                             # Helpers and metrics functions
 ├── image_figures/                           # Computed confusion matrices and t-SNE clusters
 ├── notebooks/                               # Development-phase notebooks
 │   ├── final_notebook/                      # Final notebook of development directory
@@ -257,6 +261,7 @@ Swin-Xception-for-FER/
 | `optimiser` | AdamW | Optimisation algorithm |
 | `scheduler` | CosineAnnealingLR | Learning Rate Scheduling algorithm |
 | `eta_min` | 1e-6| Minimum learning rate |
+| `epochs` | 100 | Minimum learning rate |
 
 
 ---
