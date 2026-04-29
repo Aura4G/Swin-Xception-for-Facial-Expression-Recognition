@@ -6,6 +6,7 @@ from src import datasets
 import torch
 import torch.nn as nn
 
+import os
 import argparse
 
 ### STAGE ONE ###
@@ -148,6 +149,8 @@ def report_all_metrics(model_path="swin_xception_final.pth", device=torch.device
         device (torch.device): Either "cuda" or "cpu" depending on availability.
     """
 
+    os.makedirs("image_figures", exist_ok=True)
+
     model = engine.load_swinxception_model(model_path)
 
     _, val_loader, test_raf_loader, test_fer_loader = datasets.load_datasets()
@@ -235,4 +238,52 @@ def produce_grad_cam_images_from_set(model_path="swin_xception_final.pth", devic
 
 
 if __name__ == "__main__":
-    produce_grad_cam_image(model_path="temp/swin_xception_final.pth", img_path="me_lol.jpg")
+    parser = argparse.ArgumentParser(description="SwinXception Training and Evaluation Pipeline")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Stage One
+    train_parser = subparsers.add_parser("train", help="Run end-to-end training (Stage 1)")
+    train_parser.add_argument("--epochs", type=int, default=100)
+
+    # Stages Two & Three (SMOTE + MLP retraining)
+    subparsers.add_parser("smote-retrain", help="Run SMOTE feature extraction and MLP head retraining (Stages 2 & 3)")
+
+    # Full pipeline
+    pipeline_parser = subparsers.add_parser("pipeline", help="Run the complete training pipeline (Stages 1-3)")
+    pipeline_parser.add_argument("--epochs", type=int, default=100)
+
+    # Metrics
+    metrics_parser = subparsers.add_parser("metrics", help="Report all classification metrics")
+    metrics_parser.add_argument("--model-path", type=str, default="swin_xception_final.pth")
+
+    # Grad-CAM (single image)
+    gradcam_parser = subparsers.add_parser("gradcam", help="Produce Grad-CAM for a single image")
+    gradcam_parser.add_argument("--model-path", type=str, default="swin_xception_final.pth")
+    gradcam_parser.add_argument("--img-path", type=str, required=True)
+
+    # Grad-CAM (from dataset)
+    gradcam_set_parser = subparsers.add_parser("gradcam-set", help="Produce Grad-CAM images from RAF-DB dataset")
+    gradcam_set_parser.add_argument("--model-path", type=str, default="swin_xception_final.pth")
+
+    args = parser.parse_args()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if args.command == "train":
+        end_to_end_training(epochs=args.epochs, device=device)
+
+    elif args.command == "smote-retrain":
+        balanced_features, balanced_labels = apply_smote_to_dataset(device=device)
+        mlp_head_retraining(balanced_features, balanced_labels, device=device)
+
+    elif args.command == "pipeline":
+        complete_training_pipeline(stage_one_epochs=args.epochs, device=device)
+
+    elif args.command == "metrics":
+        report_all_metrics(model_path=args.model_path, device=device)
+
+    elif args.command == "gradcam":
+        produce_grad_cam_image(model_path=args.model_path, img_path=args.img_path, device=device)
+
+    elif args.command == "gradcam-set":
+        produce_grad_cam_images_from_set(model_path=args.model_path, device=device)
