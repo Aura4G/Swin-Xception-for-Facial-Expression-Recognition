@@ -49,9 +49,60 @@ cd Swin-Xception-for-Facial-Expression-Recognition
 
 ## Usage
 
+### Sourcing datasets
+
+My dataset distributions I utilised are required to observe the reproducible results I achieved:
+- RAF-DB: https://www.kaggle.com/datasets/shuvoalok/raf-db-dataset
+- FER2013: https://www.kaggle.com/datasets/msambare/fer2013
+
+They are required to be placed in the './datasets' folder located in the root as follows:
+```
+datasets/
+├──RAF-DB/
+│  ├──DATASET/
+│  │  ├──test/
+│  │  │  ├──angry
+│  │  │  ├──disgust
+│  │  │  ├──fear
+│  │  │  ├──happy
+│  │  │  ├──neutral
+│  │  │  ├──sad
+│  │  │  └──surprise
+│  │  └──train/
+│  │     ├──angry
+│  │     ├──disgust
+│  │     ├──fear
+│  │     ├──happy
+│  │     ├──neutral
+│  │     ├──sad
+│  │     └──surprise
+│  ├──test_labels.csv
+│  └──train_labels.csv
+└──FER2013/
+   ├──test/
+   │  ├──angry
+   │  ├──disgust
+   │  ├──fear
+   │  ├──happy
+   │  ├──neutral
+   │  ├──sad
+   │  └──surprise
+   ├──train/
+   │  ├──angry
+   │  ├──disgust
+   │  ├──fear
+   │  ├──happy
+   │  ├──neutral
+   │  ├──sad
+   │  └──surprise
+   └──archive.zip
+```
+
 ### Training
 
 #### End-to-End Training (Stage 1)
+Saves a checkpoint to `model_checkpoints/` every epoch, and creates a state dictionary of the E2E trained model after maximum epochs reached.
+This achieves `swin_xception_baseline.pth`
 
 ```bash
 python main.py train\
@@ -59,12 +110,16 @@ python main.py train\
 ```
 
 #### SMOTE Retraining (Stages 2 & 3)
+Creates a state dictionary of the complete model with SMOTE Retraining after every epoch in MLP Retraining is complete.
+This achieves `swin_xception_final.pth`
 
 ```bash
 python main.py smote-retrain\
 ```
 
 #### Full Training Pipeline (Stages 1, 2 & 3)
+Runs End-to-End training, subsequent feature extraction and SMOTE, and MLP Head Retraining on SMOTE'd dataset
+Running the entire pipeline creates state dictionaries for `swin_xception_baseline.pth` and `swin_xception_final.pth`
 
 ```bash
 python main.py pipeline\
@@ -73,7 +128,20 @@ python main.py pipeline\
 
 ### Metrics and Insights on a given Swin-Xception Instance
 
+Each of the following scripts requires a complete working model. See [releases](https://github.com/Aura4G/Swin-Xception-for-FER/releases), or complete `train`/`smote-retrain` to
+create your own state dictionaries.
+
 #### Complete Metrics Report
+
+Reports:
+- Accuracy
+- Precision
+- Recall
+- F1-Score
+- WAR
+- UAR
+- Confusion Matrices
+- t-SNE Clusters
 
 ```bash
 python main.py metrics\
@@ -82,6 +150,8 @@ python main.py metrics\
 
 #### Grad-CAM and Inference on Individual Image
 
+Requires a local image for inference.
+
 ```bash
 python main.py gradcam\
   --model-path model_path \
@@ -89,6 +159,9 @@ python main.py gradcam\
 ```
 
 #### Grad-CAM and Inference on Standardised Images
+
+Runs inference on and produces grad-CAM insights for the first image in each class folder
+of RAF-DB
 
 ```bash
 python main.py gradcam-set\
@@ -100,6 +173,21 @@ python main.py gradcam-set\
 ## Live Demo
 
 ![Demo](https://github.com/Aura4G/Swin-Xception-for-FER/releases/download/SMOTE-Influenced/demonstration.png)
+
+The live demo application exhibits the predictive potency of Swin-Xception, as well as some practical application, using the PyQt library.
+A Haar Cascade classifier detects human faces every frame, draws a bounding box (leftmost widget), and computes inference using the
+model to draw SoftMax probabilities of each expression present for that frame (top-right widget). An image display changes depending on the
+prominent expression for that frame (bottom-right widget), demonstrating a slight application of the model towards behavioural assessment.
+
+The image displays, located in `src/emotion_displays`, can be changed to any preferrable image, but they default to text labels of the expression class
+(as seen in the image above). To add/replace images to be displayed in real-time, place your desired image in the `src/emotion_displays` folder, and rename
+your image to any of the 7 facial expression classes (angry, disgust, fear, happy, neutral, sad, surprise).
+
+This demo requires a complete Swin-Xception state dictionary, either created during training or located in [Releases](https://github.com/Aura4G/Swin-Xception-for-FER/releases).
+
+```bash
+python live_demo.py\
+```
 
 ---
 
@@ -129,7 +217,7 @@ Results on standard benchmarks (dataset name, split, accuracy):
 ## Repository Structure
 
 ```
-Swin-Xception-for-Facial-Expression-Recognition/
+Swin-Xception-for-FER/
 ├── cam_results/                             # Heatmap output images from image inputs
 ├── datasets/                                # Store the expected datasets (RAF-DB and FER2013)
 ├── src/                                     # Source files
@@ -173,9 +261,9 @@ Swin-Xception-for-Facial-Expression-Recognition/
 
 ---
 
-## Pretrained Weights
+## Released Model State Dictionaries
 
-Download pretrained checkpoints from [Releases](https://github.com/Aura4G/Swin-Xception-for-Facial-Expression-Recognition/releases)
+Download pretrained checkpoints from [Releases](https://github.com/Aura4G/Swin-Xception-for-FER/releases)
 
 ---
 
