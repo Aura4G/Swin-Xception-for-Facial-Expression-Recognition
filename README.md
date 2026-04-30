@@ -2,7 +2,7 @@
 
 > A Hybrid model, combining Shifted Window Multi-head Attention with Depthwise Separable Feed-Forward Networks for advanced local feature extraction.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 
 ---
@@ -299,4 +299,4 @@ Contributions are welcome. Please open an issue before submitting a pull request
 
 ## License
 
-[MIT](LICENSE) © Aria Noroozi
+[Apache 2.0](LICENSE) © Aria Noroozi
